@@ -10,4 +10,6 @@ apt update && apt upgrade -y
 apt install tor macchanger privoxy curl -y
 
 mkdir build/
-go build main.go -o build/
+task build
+
+mv build/torgo /usr/bin/
