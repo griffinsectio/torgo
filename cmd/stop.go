@@ -5,6 +5,9 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +18,18 @@ var stopCmd = &cobra.Command{
 	Short: "Disconnect from tor network",
 	Long:  `Disconnect from tor network and restore all configuration before connecting to tor network`,
 	Run: func(cmd *cobra.Command, args []string) {
+		err := os.Rename("/etc/sysctl.conf.bak", "/etc/sysctl.conf")
+		if err != nil {
+			log.Fatalf("Unable to restore sysctl.conf: %v", err)
+		}
+
+		exec.Command("/usr/bin/env sysctl -p /etc/sysctl.conf")
+
+		err = os.Rename("/etc/resolv.conf.bak", "/etc/resolv.conf")
+		if err != nil {
+			log.Fatalf("Unable to restore resolv.conf: %v", err)
+		}
+
 		fmt.Println("stop called")
 	},
 }

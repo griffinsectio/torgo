@@ -15,7 +15,9 @@ import (
 )
 
 var TOR_USER = "debian-tor"
-var TOR_UID = exec.Command(fmt.Sprintf("id -ur %s", TOR_USER))
+
+// var TOR_UID = exec.Command(fmt.Sprintf("id -ur %s", TOR_USER))
+var TOR_UID = exec.Command("id", "-ur", TOR_USER)
 
 var env = `/usr/bin/env `
 
@@ -35,37 +37,6 @@ ControlPort 9051
 RunAsDaemon 1`
 
 var resolvconfig = `nameserver 127.0.0.1`
-
-var NON_TOR = `192.168.1.0/24 192.168.0.0/24`
-var iptables_rules = fmt.Sprintf(`NON_TOR="%[1]s"
-TOR_UID=%[2]s
-TRANS_PORT="9040"
-
-iptables -F
-iptables -t nat -F
-
-iptables -t nat -A OUTPUT -m owner --uid-owner %[2]s -j RETURN
-iptables -t nat -A OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5353
-for NET in $NON_TOR 127.0.0.0/9 127.128.0.0/10; do
- iptables -t nat -A OUTPUT -d $NET -j RETURN
-done
-iptables -t nat -A OUTPUT -p tcp --syn -j REDIRECT --to-ports "9040"
-
-iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-for NET in $NON_TOR 127.0.0.0/8; do
-iptables -A OUTPUT -d $NET -j ACCEPT
-done
-iptables -A OUTPUT -m owner --uid-owner %[2]s -j ACCEPT
-iptables -A OUTPUT -j REJECT
-
-iptables -A FORWARD -m string --string "BitTorrent" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "BitTorrent protocol" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "peer_id=" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string ".torrent" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "announce.php?passkey=" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "torrent" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "announce" --algo bm --to 65535 -j DROP
-iptables -A FORWARD -m string --string "info_hash" --algo bm --to 65535 -j DROP`, NON_TOR, TOR_UID)
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
@@ -97,7 +68,7 @@ var startCmd = &cobra.Command{
 				log.Fatalf("Unable to write to %s: %v", sysctl, err)
 			}
 
-			out, err := exec.Command(env + "sysctl -p").Output()
+			out, err := exec.Command("sysctl", "-p").Output()
 			if err != nil {
 				log.Fatalf("Unable to reload sysctl.conf: %v", err)
 			}
@@ -106,21 +77,27 @@ var startCmd = &cobra.Command{
 			fmt.Println("IPv6 is already disabled")
 		}
 
-		if _, err := os.Stat(torrc); err == nil {
-			content, err := os.ReadFile(torrc)
+		_, err = os.Stat(torrc)
+		if err != nil {
+			fmt.Println("Creating torgorc file...")
+			_, err = os.Create(torrc)
 			if err != nil {
-				log.Fatalf("Unable to read %s: %v", torrc, err)
+				log.Fatalf("unable to create %s: %v", torrc, err)
 			}
-			if !strings.Contains(string(content), torrcconfig) {
-				file, err := os.OpenFile(torrc, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-				if err != nil {
-					log.Fatalf("unable to open %s: %v", torrc, err)
-				}
-				defer file.Close()
-				file.WriteString(torrcconfig)
-			} else {
-				fmt.Println("torgo configuration is already configured")
+		}
+		content, err = os.ReadFile(torrc)
+		if err != nil {
+			log.Fatalf("Unable to read %s: %v", torrc, err)
+		}
+		if !strings.Contains(string(content), torrcconfig) {
+			file, err := os.OpenFile(torrc, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+			if err != nil {
+				log.Fatalf("unable to open %s: %v", torrc, err)
 			}
+			defer file.Close()
+			file.WriteString(torrcconfig)
+		} else {
+			fmt.Println("torgo configuration is already configured")
 		}
 
 		content, err = os.ReadFile(resolvconf)
@@ -166,15 +143,32 @@ var startCmd = &cobra.Command{
 		}
 
 		if _, err := os.Stat(tor); err == nil {
-			exec.Command(env + "systemctl stop tor")
-			exec.Command("fuser -k 9051/tcp > /dev/null 2>&1")
+			var out, err = exec.Command("/etc/init.d/tor", "stop").Output()
+			if err != nil {
+				log.Fatalf("An error occurred: %v", err)
+			}
+			fmt.Println(string(out))
 
-			exec.Command(fmt.Sprintf("sudo -u %s tor -f %s > /dev/null", TOR_USER, torrc))
+			out, _ = exec.Command("fuser", "-k", "9051/tcp").Output()
+			fmt.Println(string(out))
+
+			// out, err = exec.Command(fmt.Sprintf("sudo -u %s tor -f %s > /dev/null", TOR_USER, torrc)).Output()
+			out, err = exec.Command("sudo", "-u", TOR_USER, "tor", "-f", torrc).Output()
+			if err != nil {
+				log.Fatalf("An error occurred: %v", err)
+			}
+			fmt.Println(string(out))
 
 		} else {
 			log.Fatalf("Unable to locate tor, is it installed? %v", err)
 		}
-		exec.Command(iptables_rules)
+		out, err := exec.Command("./iptables.sh").Output()
+
+		if err != nil {
+			log.Fatalf("An error occurred: %v", err)
+		}
+		fmt.Println(string(out))
+
 		fmt.Println("Something happened!")
 	},
 }
