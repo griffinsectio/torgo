@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -18,19 +17,58 @@ var stopCmd = &cobra.Command{
 	Short: "Disconnect from tor network",
 	Long:  `Disconnect from tor network and restore all configuration before connecting to tor network`,
 	Run: func(cmd *cobra.Command, args []string) {
+		var numOfErrors = 0
+		fmt.Println("Restoring sysctl.conf")
 		err := os.Rename("/etc/sysctl.conf.bak", "/etc/sysctl.conf")
 		if err != nil {
-			log.Fatalf("Unable to restore sysctl.conf: %v", err)
+			fmt.Printf("Unable to restore sysctl.conf: %v\n", err)
+			numOfErrors++
 		}
 
-		exec.Command("/usr/bin/env sysctl -p /etc/sysctl.conf")
+		fmt.Println("Reloading sysctl.conf")
+		out, err := exec.Command("sysctl", "-p", "/etc/sysctl.conf").Output()
+		if err != nil {
+			fmt.Printf("Could not reload sysctl.conf\n")
+			numOfErrors++
+		}
+		fmt.Println(string(out))
 
+		fmt.Println("Restoring resolv.conf")
 		err = os.Rename("/etc/resolv.conf.bak", "/etc/resolv.conf")
 		if err != nil {
-			log.Fatalf("Unable to restore resolv.conf: %v", err)
+			fmt.Printf("Unable to restore resolv.conf: %v\n", err)
+			numOfErrors++
 		}
 
-		fmt.Println("stop called")
+		fmt.Println("Flush iptables")
+		out, err = exec.Command("./iptables_flush.sh").Output()
+		if err != nil {
+			fmt.Printf("Could not flush iptables: %v\n", err)
+			numOfErrors++
+		}
+		fmt.Println(string(out))
+
+		fmt.Println("Stopping tor")
+		out, err = exec.Command("fuser", "-k", "9051/tcp").Output()
+		if err != nil {
+			fmt.Printf("Could not stop tor process: %v\n", err)
+			numOfErrors++
+		}
+		fmt.Print(fmt.Sprintf("process %s stopped", string(out)) + "\n")
+
+		fmt.Println("Restart networking")
+		out, err = exec.Command("/etc/init.d/networking", "restart").Output()
+		if err != nil {
+			fmt.Printf("Could not restart networking: %v\n", err)
+			numOfErrors++
+		}
+		fmt.Println(string(out))
+
+		if numOfErrors == 0 {
+			fmt.Println("Successfully stop connecting to tor network")
+		} else {
+			fmt.Printf("Program stopped with %d errors", numOfErrors)
+		}
 	},
 }
 

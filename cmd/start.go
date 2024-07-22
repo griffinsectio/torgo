@@ -44,6 +44,11 @@ var startCmd = &cobra.Command{
 	Short: "Connect to tor network",
 	Long:  `Start connecting to tor network to random country`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if os.Geteuid() != 0 {
+			fmt.Println("Please run as root")
+			os.Exit(1)
+		}
+
 		content, err := os.ReadFile(sysctl)
 		if err != nil {
 			log.Fatalf("unable to read file: %v", err)
