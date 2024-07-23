@@ -17,6 +17,11 @@ var stopCmd = &cobra.Command{
 	Short: "Disconnect from tor network",
 	Long:  `Disconnect from tor network and restore all configuration before connecting to tor network`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if os.Geteuid() != 0 {
+			fmt.Println("Please run as root")
+			os.Exit(1)
+		}
+
 		var numOfErrors = 0
 		fmt.Println("Restoring sysctl.conf")
 		err := os.Rename("/etc/sysctl.conf.bak", "/etc/sysctl.conf")
