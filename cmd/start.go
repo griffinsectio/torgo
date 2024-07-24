@@ -64,8 +64,6 @@ var startCmd = &cobra.Command{
 
 		stopCmd.Run(cmd, args)
 
-		ExitIfErr(fmt.Sprintf("red text?"), cmd, args)
-
 		// Old sysctl.conf content
 		content, err := os.ReadFile(sysctl)
 		if err != nil {
@@ -201,7 +199,7 @@ var startCmd = &cobra.Command{
 		} else {
 			ExitIfErr(fmt.Sprintf("Unable to locate tor, is it installed? %v", err), cmd, args)
 		}
-		out, err := exec.Command("./iptables.sh").Output()
+		out, err := exec.Command("/usr/bin/torgo-iptables/iptables.sh").Output()
 
 		if err != nil {
 			ExitIfErr(fmt.Sprintf("An error occurred: %v", err), cmd, args)

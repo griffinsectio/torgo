@@ -42,7 +42,7 @@ var stopCmd = &cobra.Command{
 		}
 
 		fmt.Println("Flush iptables")
-		out, err = exec.Command("./iptables_flush.sh").Output()
+		out, err = exec.Command("/usr/bin/torgo-iptables/iptables_flush.sh").Output()
 		if err != nil {
 			fmt.Printf("Could not flush iptables: %v\n", err)
 		}

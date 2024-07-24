@@ -10,6 +10,7 @@ apt update && apt upgrade -y
 apt install tor macchanger privoxy curl -y
 
 mkdir build/
-task build
+go build -o build/torgo main.go
 
-mv build/torgo /usr/bin/
+cp build/torgo /usr/bin/
+cp -r torgo-iptables/ /usr/bin/
