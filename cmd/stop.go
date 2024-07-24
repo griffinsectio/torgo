@@ -22,19 +22,16 @@ var stopCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		var numOfErrors = 0
 		fmt.Println("Restoring sysctl.conf")
 		err := os.Rename("/etc/sysctl.conf.bak", "/etc/sysctl.conf")
 		if err != nil {
 			fmt.Printf("Unable to restore sysctl.conf: %v\n", err)
-			numOfErrors++
 		}
 
 		fmt.Println("Reloading sysctl.conf")
 		out, err := exec.Command("sysctl", "-p", "/etc/sysctl.conf").Output()
 		if err != nil {
 			fmt.Printf("Could not reload sysctl.conf\n")
-			numOfErrors++
 		}
 		fmt.Println(string(out))
 
@@ -42,14 +39,12 @@ var stopCmd = &cobra.Command{
 		err = os.Rename("/etc/resolv.conf.bak", "/etc/resolv.conf")
 		if err != nil {
 			fmt.Printf("Unable to restore resolv.conf: %v\n", err)
-			numOfErrors++
 		}
 
 		fmt.Println("Flush iptables")
 		out, err = exec.Command("./iptables_flush.sh").Output()
 		if err != nil {
 			fmt.Printf("Could not flush iptables: %v\n", err)
-			numOfErrors++
 		}
 		fmt.Println(string(out))
 
@@ -57,7 +52,6 @@ var stopCmd = &cobra.Command{
 		out, err = exec.Command("fuser", "-k", "9051/tcp").Output()
 		if err != nil {
 			fmt.Printf("Could not stop tor process: %v\n", err)
-			numOfErrors++
 		}
 		fmt.Print(fmt.Sprintf("process %s stopped", string(out)) + "\n")
 
@@ -65,15 +59,10 @@ var stopCmd = &cobra.Command{
 		out, err = exec.Command("/etc/init.d/networking", "restart").Output()
 		if err != nil {
 			fmt.Printf("Could not restart networking: %v\n", err)
-			numOfErrors++
 		}
 		fmt.Println(string(out))
 
-		if numOfErrors == 0 {
-			fmt.Println("Successfully stop connecting to tor network")
-		} else {
-			fmt.Printf("Program stopped with %d errors", numOfErrors)
-		}
+		fmt.Println("Stop connecting to tor network")
 	},
 }
 
