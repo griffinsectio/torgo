@@ -31,7 +31,8 @@ AutomapHostsOnResolve 1
 TransPort 9040
 DNSPort 5353
 ControlPort 9051
-RunAsDaemon 1`
+RunAsDaemon 1
+`
 
 var resolvconfig = `nameserver 127.0.0.1`
 
@@ -44,9 +45,10 @@ func CreateIfFileNotExist(filename string) {
 }
 
 func ExitIfErr(msg string, cmd *cobra.Command, args []string) {
-	fmt.Println("Fatal error occurred, stop connecting to tor network...")
+	fmt.Println("\033[91mFatal error occurred, stop connecting to tor network...\033[37m")
 	stopCmd.Run(cmd, args)
-	log.Fatalf(msg)
+	fmt.Printf("Error details: \033[91m" + msg + "\033[37m\n")
+	os.Exit(1)
 }
 
 // startCmd represents the start command
@@ -56,11 +58,13 @@ var startCmd = &cobra.Command{
 	Long:  `Start connecting to tor network to random country`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if os.Geteuid() != 0 {
-			fmt.Println("Please run as root")
+			fmt.Println("\033[1m\033[94mPlease run as root")
 			os.Exit(1)
 		}
 
 		stopCmd.Run(cmd, args)
+
+		ExitIfErr(fmt.Sprintf("red text?"), cmd, args)
 
 		// Old sysctl.conf content
 		content, err := os.ReadFile(sysctl)
@@ -110,29 +114,31 @@ var startCmd = &cobra.Command{
 			fmt.Println("IPv6 is already disabled")
 		}
 
-		_, err = os.Stat(torrc)
+		fmt.Println("Creating torgorc file...")
+		_, err = os.Create(torrc)
 		if err != nil {
-			fmt.Println("Creating torgorc file...")
-			_, err = os.Create(torrc)
-			if err != nil {
-				ExitIfErr(fmt.Sprintf("unable to create %s: %v", torrc, err), cmd, args)
-			}
+			ExitIfErr(fmt.Sprintf("unable to create %s: %v", torrc, err), cmd, args)
 		}
-		content, err = os.ReadFile(torrc)
+
+		file, err = os.OpenFile(torrc, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			ExitIfErr(fmt.Sprintf("Unable to read %s: %v", torrc, err), cmd, args)
-			stopCmd.Run(cmd, args)
+			ExitIfErr(fmt.Sprintf("unable to open %s: %v", torrc, err), cmd, args)
 		}
-		if !strings.Contains(string(content), torrcconfig) {
-			file, err := os.OpenFile(torrc, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-			if err != nil {
-				ExitIfErr(fmt.Sprintf("unable to open %s: %v", torrc, err), cmd, args)
-			}
-			defer file.Close()
-			file.WriteString(torrcconfig)
-		} else {
-			fmt.Println("torgo configuration is already configured")
+		defer file.Close()
+		file.WriteString(torrcconfig)
+
+		country, err := cmd.Flags().GetString("country")
+		if err != nil {
+			ExitIfErr(fmt.Sprintf("Unable to parse flag argument: %v", err), cmd, args)
 		}
+
+		file, err = os.OpenFile(torrc, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			ExitIfErr(fmt.Sprintf("Unable to append to %s: %v", torrc, err), cmd, args)
+		}
+		country = strings.ToLower(country)
+		fmt.Println(country)
+		file.WriteString(fmt.Sprintf("ExitNodes {%s}", country))
 
 		content, err = os.ReadFile(resolvconf)
 		if err != nil {
@@ -202,12 +208,16 @@ var startCmd = &cobra.Command{
 		}
 		fmt.Println(string(out))
 
-		fmt.Println("Something happened!")
+		fmt.Println("Connected to tor network!")
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+
+	var Country string
+
+	startCmd.Flags().StringVarP(&Country, "country", "c", "", "Specify a country code as exit node for your connection to tor network")
 
 	// Here you will define your flags and configuration settings.
 
