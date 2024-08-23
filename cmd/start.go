@@ -87,6 +87,7 @@ var startCmd = &cobra.Command{
 		}
 		defer file.Close()
 
+		// If sysctl.conf haven't disable IPv6
 		if !strings.Contains(string(content), disable_ipv6) {
 			fmt.Println("Disabling IPv6...")
 			backup, err := os.Create(sysctl + ".bak")
@@ -112,6 +113,7 @@ var startCmd = &cobra.Command{
 			fmt.Println("IPv6 is already disabled")
 		}
 
+		// create torgo configuration file
 		fmt.Println("Creating torgorc file...")
 		_, err = os.Create(torrc)
 		if err != nil {
@@ -125,19 +127,24 @@ var startCmd = &cobra.Command{
 		defer file.Close()
 		file.WriteString(torrcconfig)
 
+		// get the argument for country option
 		country, err := cmd.Flags().GetString("country")
 		if err != nil {
 			ExitIfErr(fmt.Sprintf("Unable to parse flag argument: %v", err), cmd, args)
 		}
 
-		file, err = os.OpenFile(torrc, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-		if err != nil {
-			ExitIfErr(fmt.Sprintf("Unable to append to %s: %v", torrc, err), cmd, args)
+		// if the user give a country id
+		if country != "" {
+			file, err = os.OpenFile(torrc, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+			if err != nil {
+				ExitIfErr(fmt.Sprintf("Unable to append to %s: %v", torrc, err), cmd, args)
+			}
+			country = strings.ToLower(country)
+			fmt.Println(country)
+			file.WriteString(fmt.Sprintf("ExitNodes {%s}", country))
 		}
-		country = strings.ToLower(country)
-		fmt.Println(country)
-		file.WriteString(fmt.Sprintf("ExitNodes {%s}", country))
 
+		// configure resolv.conf
 		content, err = os.ReadFile(resolvconf)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -156,6 +163,8 @@ var startCmd = &cobra.Command{
 				ExitIfErr(fmt.Sprintf("unable to open file: %v", err), cmd, args)
 			}
 		}
+
+		// if resolv.conf haven't configured
 		if !strings.Contains(string(content), resolvconfig) {
 			file, err := os.OpenFile(resolvconf+".bak", os.O_WRONLY|os.O_CREATE, 0644)
 			if err != nil {
@@ -180,6 +189,7 @@ var startCmd = &cobra.Command{
 			fmt.Println("resolv.conf already configured")
 		}
 
+		// restart tor with the new configuration
 		if _, err := os.Stat(tor); err == nil {
 			var out, err = exec.Command("/etc/init.d/tor", "stop").Output()
 			if err != nil {
@@ -195,10 +205,11 @@ var startCmd = &cobra.Command{
 				ExitIfErr(fmt.Sprintf("An error occurred: %v", err), cmd, args)
 			}
 			fmt.Println(string(out))
-
 		} else {
 			ExitIfErr(fmt.Sprintf("Unable to locate tor, is it installed? %v", err), cmd, args)
 		}
+
+		// set firewall rules for tor
 		out, err := exec.Command("/usr/bin/torgo-iptables/iptables.sh").Output()
 
 		if err != nil {
